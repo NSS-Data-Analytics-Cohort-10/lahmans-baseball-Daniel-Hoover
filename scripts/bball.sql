@@ -174,98 +174,122 @@ FROM teams
 WHERE yearid>=1970 AND wswin= 'Y'AND yearid != 1981
 ORDER BY w
 
---St. Louis Cardinals in 2006 had the next small
+--St. Louis Cardinals in 2006 had the next smallest
 
-WITH cte AS
-(
+
+WITH cte AS (
 SELECT
-	name
-	,MAX(w)
+	MAX(w) most
 	,yearid
 FROM teams
-WHERE yearid>=1970 AND wswin= 'Y'
-GROUP BY
-	name
-	,yearid
+WHERE yearid>=1970
+GROUP BY yearid
 ORDER BY yearid, MAX(w)
 )
-
-SELECT
-	
-
-
 SELECT
 	name
-	,MAX(W)
-	,yearid
-FROM teams
-WHERE yearid>=1970 AND wswin= 'N'
-GROUP BY name
-		,yearid
-ORDER BY MAX(w) DESC
+	,w
+	,t.yearid
+	,SUM(CASE WHEN t.w = cte.most THEN 1
+	ELSE 0 END) OVER ()
+FROM teams t
+FULL JOIN cte
+ON t.yearid = cte.yearid AND t.w =cte.most
+WHERE t.yearid>=1970 
+	AND t.wswin= 'Y'
+	AND t.yearid != 1981
+ORDER BY yearid, w
 
+--(12/45)*100 = 26.67% of the time the teams that won the most games also won the World Series
 
 --8. Using the attendance figures from the homegames table, find the teams and parks which had the top 5 average attendance per game in 2016 (where average attendance is defined as total attendance divided by number of games). Only consider parks where there were at least 10 games played. Report the park name, team name, and average attendance. Repeat for the lowest 5 average attendance.
-
+SELECT *
+FROM(
 SELECT
-	t.name
+	'Top 5' type
+	,t.name
 	,SUM(h.attendance)/SUM(h.games) AS avg_att
 	,p.park_name
 FROM homegames h
 LEFT JOIN teams t
-ON h.team = t.teamid
+ON h.team = t.teamid AND h.year=t.yearid
 LEFT JOIN parks p
 ON h.park = p.park
 WHERE h.year = 2016 AND h.games>=10
 GROUP BY t.name
 	,p.park_name
 ORDER BY avg_att DESC
-LIMIT 5
+LIMIT 5)
 
---Top 5
+UNION
 
+SELECT*
+FROM(
 SELECT
-	t.name
+	'Bottom 5' type
+	,t.name
 	,SUM(h.attendance)/SUM(h.games) AS avg_att
 	,p.park_name
 FROM homegames h
 LEFT JOIN teams t
-ON h.team = t.teamid
+ON h.team = t.teamid AND h.year=t.yearid
 LEFT JOIN parks p
 ON h.park = p.park
 WHERE h.year = 2016 AND h.games>=10
 GROUP BY t.name
 	,p.park_name
 ORDER BY avg_att
-LIMIT 5
-
+LIMIT 5)
+ORDER BY 1 DESC,3
 --Bottom 5
 
 --9. Which managers have won the TSN Manager of the Year award in both the National League (NL) and the American League (AL)? Give their full name and the teams that they were managing when they won the award.
 
 
---REALLY CLOSE!
 SELECT
 	p.namefirst||' ' ||p.namelast name
-	--,t.name
-	--,a.yearid
+	,t.name
+	,a.yearid
+	,a.lgid
 FROM awardsmanagers a
-INNER JOIN people p
+LEFT JOIN people p
 USING(playerid)
-INNER JOIN managers m
-ON a.playerid = m.playerid 
-INNER JOIN teams t
-ON m.teamid = t.teamid
-WHERE a.lgid = 'NL' OR a.lgid = 'AL'
-GROUP BY p.namefirst||' ' ||p.namelast, --t.name, --a.yearid
---Distinct list of 50 managers 
-
-
-
+LEFT JOIN managers m
+ON a.playerid = m.playerid AND a.lgid = m.lgid AND a.yearid = m.yearid
+LEFT JOIN teams t
+ON m.teamid = t.teamid AND m.lgid =t.lgid AND m.yearid = t.yearid
+WHERE a.awardid LIKE 'TSN%' AND (a.lgid = 'NL' OR a.lgid = 'AL')
+GROUP BY p.namefirst||' ' ||p.namelast,t.name, a.yearid, a.lgid
+ORDER BY a.yearid
 
 
 --10. Find all players who hit their career highest number of home runs in 2016. Consider only players who have played in the league for at least 10 years, and who hit at least one home run in 2016. Report the players' first and last names and the number of home runs they hit in 2016.
 
+WITH maxhr AS (
+SELECT
+	playerid
+	,hr 
+	,yearid AS years
+FROM batting 
+GROUP BY playerid, hr, years
+ORDER BY years DESC, MAX(hr) DESC
+)
+SELECT
+	b.playerid
+	,b.hr
+	--,CASE WHEN maxhr.hr = MAX(b.hr) THEN 'true'
+	--ELSE 'false' END AS hr2016
+FROM batting b
+INNER JOIN maxhr
+ON maxhr.playerid = b.playerid --AND maxhr.mhr = b.hr
+WHERE maxhr.hr = b.hr
+	AND yearid = 2016
+	AND maxhr.hr != 0
+	AND maxhr.years>=10
+GROUP BY b.playerid
+		,b.hr
+		--,hr2016
+HAVING(maxhr.hr = MAX(b.hr))
 
 --**Open-ended questions**
 
