@@ -286,63 +286,32 @@ USING (playerid)
 
 
 --10. Find all players who hit their career highest number of home runs in 2016. Consider only players who have played in the league for at least 10 years, and who hit at least one home run in 2016. Report the players' first and last names and the number of home runs they hit in 2016.
-SELECT* FROM batting WHERE yearid =2016 --5.5%
---102816
-
-
-
-
-
-
-
-WITH cte AS (
-SELECT
+WITH  cte AS(
+	SELECT
 	playerid
-	,MAX(hr) AS mhr
-	,yearid
+	,MAX(hr) max
 FROM batting
-GROUP BY
-	playerid
-	,yearid
+WHERE yearid = 2016
+	AND playerid IN
+			(SELECT
+			playerid
+			FROM batting
+			GROUP BY playerid
+			HAVING (COUNT(DISTINCT yearid)>9))
+GROUP BY playerid
 )
+
 SELECT
 	p.namefirst|| ' ' || p.namelast AS name
-	,cte.mhr
-FROM cte
-LEFT JOIN people p
-	ON cte.playerid = p.playerid
-WHERE yearid = 2016
-	AND mhr > 0
-	AND cte.playerid
-	IN(SELECT
-		playerid
-		FROM people
-		GROUP BY playerid 
-		HAVING (EXTRACT(YEARS FROM AGE(finalgame::DATE, debut::DATE))>= 10))
-		--(EXTRACT(YEARS FROM finalgame::date) - EXTRACT(YEARS FROM debut::date)) >=10)   THIS is less accurate
-ORDER BY cte.mhr DESC
-
-/*WITH hr_maxes AS(
-SELECT
-	playerid
-	,MAX(hr) as max_hr
-FROM batting
-GROUP BY playerid
-HAVING COUNT(DISTINCT yearid) >= 10
-)
-SELECT
-	p.namefirst
-	,p.namelast
-	,b.hr
-FROM hr_maxes AS m
-LEFT JOIN people AS p
-USING(playerid)
-LEFT JOIN batting AS b
-USING(playerid)
-WHERE b.yearid = 2016
-AND b.hr = m.max_hr
-AND b.hr >= 1*/
-
+	,cte.max AS max
+FROM batting AS b
+INNER JOIN cte
+USING (playerid)
+INNER JOIN people p
+USING (playerid)
+WHERE cte.max > 0
+GROUP BY cte.playerid,p.namefirst|| ' ' || p.namelast, cte.max
+HAVING (cte.max=MAX(hr))
 
 --**Open-ended questions**
 
