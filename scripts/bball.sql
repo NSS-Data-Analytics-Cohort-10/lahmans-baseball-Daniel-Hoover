@@ -193,11 +193,11 @@ SELECT
 	,SUM(CASE WHEN t.w = cte.most THEN 1
 	ELSE 0 END) OVER ()
 FROM teams t
-FULL JOIN cte
+LEFT JOIN cte
 ON t.yearid = cte.yearid AND t.w =cte.most
-WHERE t.yearid>=1970 
+WHERE t.yearid BETWEEN 1970 AND 2016
 	AND t.wswin= 'Y'
-	AND t.yearid != 1981
+	AND t.yearid <> 1981
 ORDER BY yearid, w
 
 --(12/45)*100 = 26.67% of the time the teams that won the most games also won the World Series
@@ -245,55 +245,123 @@ ORDER BY 1 DESC,3
 
 --9. Which managers have won the TSN Manager of the Year award in both the National League (NL) and the American League (AL)? Give their full name and the teams that they were managing when they won the award.
 
-
+WITH cte AS (
+SELECT 
+	playerid
+	,yearid
+	,lgid
+FROM awardsmanagers
+WHERE awardid LIKE 'TSN Manager of the Year' 
+		AND lgid='NL'
+		AND playerid IN (SELECT
+	playerid
+FROM awardsmanagers
+WHERE awardid LIKE 'TSN Manager of the Year' AND lgid='AL')
+UNION
 SELECT
-	p.namefirst||' ' ||p.namelast name
+	playerid
+	,yearid
+	,lgid
+FROM awardsmanagers
+WHERE awardid LIKE 'TSN Manager of the Year' 
+	AND lgid='AL'
+	AND playerid IN (SELECT 
+	playerid
+FROM awardsmanagers
+WHERE awardid LIKE 'TSN Manager of the Year' 
+		AND lgid='NL')
+	ORDER BY yearid
+)
+SELECT
+	p.namefirst|| ' ' ||p.namelast AS name
 	,t.name
-	,a.yearid
-	,a.lgid
-FROM awardsmanagers a
-LEFT JOIN people p
-USING(playerid)
-LEFT JOIN managers m
-ON a.playerid = m.playerid AND a.lgid = m.lgid AND a.yearid = m.yearid
-LEFT JOIN teams t
-ON m.teamid = t.teamid AND m.lgid =t.lgid AND m.yearid = t.yearid
-WHERE a.awardid LIKE 'TSN%' AND (a.lgid = 'NL' OR a.lgid = 'AL')
-GROUP BY p.namefirst||' ' ||p.namelast,t.name, a.yearid, a.lgid
-ORDER BY a.yearid
+	--*
+FROM cte
+INNER JOIN managers m
+USING (playerid, yearid, lgid)
+INNER JOIN teams t
+USING (teamid,lgid,yearid)
+INNER JOIN people p
+USING (playerid)
 
 
 --10. Find all players who hit their career highest number of home runs in 2016. Consider only players who have played in the league for at least 10 years, and who hit at least one home run in 2016. Report the players' first and last names and the number of home runs they hit in 2016.
+SELECT* FROM batting WHERE yearid =2016 --5.5%
+--102816
 
-WITH maxhr AS (
+
+
+
+
+
+
+WITH cte AS (
 SELECT
 	playerid
-	,hr 
-	,yearid AS years
-FROM batting 
-GROUP BY playerid, hr, years
-ORDER BY years DESC, MAX(hr) DESC
+	,MAX(hr) AS mhr
+	,yearid
+FROM batting
+GROUP BY
+	playerid
+	,yearid
 )
 SELECT
-	b.playerid
+	p.namefirst|| ' ' || p.namelast AS name
+	,cte.mhr
+FROM cte
+LEFT JOIN people p
+	ON cte.playerid = p.playerid
+WHERE yearid = 2016
+	AND mhr > 0
+	AND cte.playerid
+	IN(SELECT
+		playerid
+		FROM people
+		GROUP BY playerid 
+		HAVING (EXTRACT(YEARS FROM AGE(finalgame::DATE, debut::DATE))>= 10))
+		--(EXTRACT(YEARS FROM finalgame::date) - EXTRACT(YEARS FROM debut::date)) >=10)   THIS is less accurate
+ORDER BY cte.mhr DESC
+
+/*WITH hr_maxes AS(
+SELECT
+	playerid
+	,MAX(hr) as max_hr
+FROM batting
+GROUP BY playerid
+HAVING COUNT(DISTINCT yearid) >= 10
+)
+SELECT
+	p.namefirst
+	,p.namelast
 	,b.hr
-	--,CASE WHEN maxhr.hr = MAX(b.hr) THEN 'true'
-	--ELSE 'false' END AS hr2016
-FROM batting b
-INNER JOIN maxhr
-ON maxhr.playerid = b.playerid --AND maxhr.mhr = b.hr
-WHERE maxhr.hr = b.hr
-	AND yearid = 2016
-	AND maxhr.hr != 0
-	AND maxhr.years>=10
-GROUP BY b.playerid
-		,b.hr
-		--,hr2016
-HAVING(maxhr.hr = MAX(b.hr))
+FROM hr_maxes AS m
+LEFT JOIN people AS p
+USING(playerid)
+LEFT JOIN batting AS b
+USING(playerid)
+WHERE b.yearid = 2016
+AND b.hr = m.max_hr
+AND b.hr >= 1*/
+
 
 --**Open-ended questions**
 
 --11. Is there any correlation between number of wins and team salary? Use data from 2000 and later to answer this question. As you do this analysis, keep in mind that salaries across the whole league tend to increase together, so you may want to look on a year-by-year basis.
+
+SELECT
+	t.name
+	,SUM(s.salary)
+	,s.yearid
+FROM salaries s
+LEFT JOIN teams t
+ON s.yearid = t.yearid AND s.teamid = t.teamid
+WHERE s.yearid >= 2000 
+GROUP BY t.name
+	,s.yearid
+ORDER BY SUM(s.salary) 
+
+
+
 
 --12. In this question, you will explore the connection between number of wins and attendance.
     --<ol type="a">
