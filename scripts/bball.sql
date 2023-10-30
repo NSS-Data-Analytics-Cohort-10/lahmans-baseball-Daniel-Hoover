@@ -318,18 +318,22 @@ HAVING (cte.max=MAX(hr))
 --11. Is there any correlation between number of wins and team salary? Use data from 2000 and later to answer this question. As you do this analysis, keep in mind that salaries across the whole league tend to increase together, so you may want to look on a year-by-year basis.
 
 SELECT
-	t.name
+	s.yearid
+	,t.name
 	,SUM(s.salary)
-	,s.yearid
+	,t.w
+	,LAG(SUM(s.salary)) OVER (PARTITION BY t.name ORDER BY s.yearid) AS previousyearsalary
+	,LAG(t.w) OVER (PARTITION BY t.name ORDER BY s.yearid) AS previousyearwins
 FROM salaries s
 LEFT JOIN teams t
 ON s.yearid = t.yearid AND s.teamid = t.teamid
-WHERE s.yearid >= 2000 
+WHERE s.yearid >= 2000 --AND t.name LIKE 'Detroit%'
 GROUP BY t.name
 	,s.yearid
-ORDER BY SUM(s.salary) 
+	,t.w
+ORDER BY s.yearid, SUM(s.salary) 
 
-
+--There seems to be a very loose correlation between wins and salaries. While there are some instances where salary increase seems to reflect on previous year performance, there are other instances where there is a signifcant salary increase despite a drop in performance. 
 
 
 --12. In this question, you will explore the connection between number of wins and attendance.
@@ -338,5 +342,103 @@ ORDER BY SUM(s.salary)
     --  <li>Do teams that win the world series see a boost in attendance the following year? What about teams that made the playoffs? Making the --playoffs means either being a division winner or a wild card winner.</li>
    -- </ol>
 
+SELECT
+	yearid
+	,name
+	,w
+	,ghome
+	,attendance
+	,CASE WHEN divwin = 'Y' OR wcwin = 'Y' THEN 'true' ELSE 'false' END AS in_playoffs
+	,lead(attendance) OVER (PARTITION BY name ORDER BY yearid) AS followingyearattendance
+FROM teams
+ORDER BY yearid DESC
+
 
 --13. It is thought that since left-handed pitchers are more rare, causing batters to face them less often, that they are more effective. Investigate this claim and present evidence to either support or dispute this claim. First, determine just how rare left-handed pitchers are compared with right-handed pitchers. Are left-handed pitchers more likely to win the Cy Young Award? Are they more likely to make it into the hall of fame?*/
+
+SELECT
+	COUNT(DISTINCT playerid)
+	,SUM(COUNT(DISTINCT playerid)) OVER () number_of_pitchers
+	,COUNT(DISTINCT playerid)*100/SUM(COUNT(DISTINCT playerid)) OVER() percent_of_total_pitchers
+	,throws
+FROM people p
+INNER JOIN appearances a
+USING (playerid)
+WHERE a.g_p>0
+GROUP BY throws
+
+
+-- 26% left handed
+-- 71% right handed
+
+
+--Investigating why 324 pitchers had no listed throw but still played games as pitchers.
+/*SELECT
+	DISTINCT p.playerid
+	,a.g_p --where they appeared as a pitcher
+FROM people p
+INNER JOIN appearances a
+USING (playerid)
+WHERE p.throws IS NULL AND a.g_p >0*/
+
+SELECT
+	--pe.throws
+	--DISTINCT playerid
+	pi.so/pi.g AS so_per_game
+	,AVG(pi.so/pi.g) OVER() AS strikeoutspergame
+	--,((COUNT(pe.playerid)/(SELECT COUNT(playerid) FROM people)) *100) OVER() AS percent
+FROM people pe
+INNER JOIN pitching pi
+USING(playerid)
+WHERE throws = 'L'
+GROUP BY --pe.throws
+		--playerid, 
+		so_per_game
+UNION
+SELECT
+	--pe.throws
+	--DISTINCT playerid
+	pi.so/pi.g AS so_per_game
+	,AVG(pi.so/pi.g) OVER() AS strikeoutspergame
+	--,((COUNT(playerid)/44624) *100) OVER() AS percent
+FROM people pe
+INNER JOIN pitching pi
+USING(playerid)
+WHERE throws = 'R'
+GROUP BY --pe.throws
+		--playerid, 
+		so_per_game
+
+--Left Handed pitchers have an average strikeout of 1.57 per game while Right handed pitchers have a 1.54 rate. There is a difference but only over .03 which seems pretty negligible. This might also be realted to the distribution of the handed pitchers as well, the smaller data set will display larger differences than the larger data set. Of all pitchers 26.6% are left handed and 71.0% are right handed. 
+
+
+SELECT
+	p.throws
+	--DISTINCT playerid
+	,COUNT(DISTINCT playerid)*100/SUM(COUNT(DISTINCT playerid)) OVER ()
+FROM appearances a
+INNER JOIN people p
+USING(playerid)
+WHERE a.g_p >0 
+	--AND p.throws = 'L'
+	AND playerid IN (
+			SELECT playerid
+			FROM awardsplayers
+			WHERE awardid LIKE 'Cy%')
+GROUP BY --DISTINCT playerid
+p.throws
+
+--Left handed pitchers win the Cy Young Award 31% of the time. While right handed pitchers win it 69% of the time. Comparing that to the overall distribution, it seems like left handed pitchers tend to win it slightly more often than right handed pitchers
+
+SELECT
+	p.throws
+	,COUNT(DISTINCT playerid)*100/SUM(COUNT(DISTINCT playerid)) OVER ()
+FROM appearances a
+INNER JOIN people p
+USING(playerid)
+WHERE a.g_p >0 
+	AND playerid IN (
+					SELECT playerid
+					FROM halloffame)
+GROUP BY p.throws
+-- They are also more likely to be inducted into the Hall of Fame than righty's 
