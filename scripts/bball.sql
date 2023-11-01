@@ -486,7 +486,8 @@ USING(playerid)
 WHERE a.g_p >0 
 	AND playerid 
 	IN (SELECT playerid
-		FROM halloffame)
+		FROM halloffame
+	    WHERE inducted = 'Y')
 GROUP BY p.throws
 )
 SELECT
