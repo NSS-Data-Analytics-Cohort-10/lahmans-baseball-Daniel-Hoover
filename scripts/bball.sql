@@ -296,8 +296,8 @@ WHERE yearid = 2016
 			(SELECT
 			playerid
 			FROM batting
-			GROUP BY playerid
-			HAVING (COUNT(DISTINCT yearid)>9))
+			GROUP BY playerid)
+			--HAVING (COUNT(DISTINCT yearid)>9))  
 GROUP BY playerid
 )
 
@@ -309,7 +309,7 @@ INNER JOIN cte
 USING (playerid)
 INNER JOIN people p
 USING (playerid)
-WHERE cte.max > 0
+WHERE cte.max > 0 AND EXTRACT(YEARS FROM AGE(p.finalgame::DATE, p.debut::DATE)) >= 10
 GROUP BY cte.playerid,p.namefirst|| ' ' || p.namelast, cte.max
 HAVING (cte.max=MAX(hr))
 
@@ -337,10 +337,8 @@ ORDER BY s.yearid, SUM(s.salary)
 
 
 --12. In this question, you will explore the connection between number of wins and attendance.
-    --<ol type="a">
-    --  <li>Does there appear to be any correlation between attendance at home games and number of wins? </li>
-    --  <li>Do teams that win the world series see a boost in attendance the following year? What about teams that made the playoffs? Making the --playoffs means either being a division winner or a wild card winner.</li>
-   -- </ol>
+    -- Does there appear to be any correlation between attendance at home games and number of wins?
+    -- Do teams that win the world series see a boost in attendance the following year? What about teams that made the playoffs? Making the playoffs means either being a division winner or a wild card winner.
 
 SELECT
 	yearid
@@ -353,6 +351,25 @@ SELECT
 FROM teams
 ORDER BY yearid DESC
 
+--Doing calculations with window functions
+
+WITH cte AS (
+SELECT
+	yearid
+	,name
+	,w
+	,ghome
+	,attendance
+	,CASE WHEN divwin = 'Y' OR wcwin = 'Y' THEN 'true' ELSE 'false' END AS in_playoffs
+	,lead(attendance) OVER (PARTITION BY name ORDER BY yearid) AS followingyearattendance
+FROM teams
+ORDER BY yearid DESC)
+
+SELECT
+	*
+	,CASE WHEN attendance < followingyearattendance THEN 'increase'
+	WHEN attendance > followingyearattendance THEN 'decrease' END AS inc_OR_dec
+FROM cte
 
 --13. It is thought that since left-handed pitchers are more rare, causing batters to face them less often, that they are more effective. Investigate this claim and present evidence to either support or dispute this claim. First, determine just how rare left-handed pitchers are compared with right-handed pitchers. Are left-handed pitchers more likely to win the Cy Young Award? Are they more likely to make it into the hall of fame?*/
 
@@ -415,7 +432,7 @@ GROUP BY --pe.throws
 SELECT
 	p.throws
 	--DISTINCT playerid
-	,COUNT(DISTINCT playerid)*100/SUM(COUNT(DISTINCT playerid)) OVER ()
+	,COUNT(DISTINCT playerid)*100/SUM(COUNT(DISTINCT playerid)) OVER () AS award_winners
 FROM appearances a
 INNER JOIN people p
 USING(playerid)
@@ -432,7 +449,7 @@ p.throws
 
 SELECT
 	p.throws
-	,COUNT(DISTINCT playerid)*100/SUM(COUNT(DISTINCT playerid)) OVER ()
+	,COUNT(DISTINCT playerid)*100/SUM(COUNT(DISTINCT playerid)) OVER () AS hall_of_fame
 FROM appearances a
 INNER JOIN people p
 USING(playerid)
@@ -442,3 +459,52 @@ WHERE a.g_p >0
 					FROM halloffame)
 GROUP BY p.throws
 -- They are also more likely to be inducted into the Hall of Fame than righty's 
+
+
+WITH cte AS(
+SELECT
+	p.throws
+	,COUNT(DISTINCT playerid)*100/SUM(COUNT(DISTINCT playerid)) OVER () AS award_winners
+FROM appearances a
+INNER JOIN people p
+USING(playerid)
+WHERE a.g_p >0 
+	AND playerid 
+	IN (SELECT playerid
+		FROM awardsplayers
+		WHERE awardid LIKE 'Cy%')
+GROUP BY
+p.throws
+),
+cte2 AS(
+SELECT
+	p.throws
+	,COUNT(DISTINCT playerid)*100/SUM(COUNT(DISTINCT playerid)) OVER () AS hall_of_fame
+FROM appearances a
+INNER JOIN people p
+USING(playerid)
+WHERE a.g_p >0 
+	AND playerid 
+	IN (SELECT playerid
+		FROM halloffame)
+GROUP BY p.throws
+)
+SELECT
+	COUNT(DISTINCT playerid)
+	,cte.award_winners
+	,cte2.hall_of_fame
+	,COUNT(DISTINCT playerid)*100/SUM(COUNT(DISTINCT playerid)) OVER() percent_of_total_pitchers
+	,p.throws
+FROM people p
+INNER JOIN appearances a
+USING (playerid)
+INNER JOIN cte
+USING(throws)
+INNER JOIN cte2
+USING(throws)
+WHERE a.g_p>0
+GROUP BY p.throws
+		,cte.award_winners
+		,cte2.hall_of_fame
+
+
