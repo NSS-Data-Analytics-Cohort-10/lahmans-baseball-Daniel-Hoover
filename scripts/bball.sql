@@ -333,11 +333,12 @@ GROUP BY t.name
 	,t.w
 ORDER BY s.yearid, SUM(s.salary) 
 
---There seems to be a very loose correlation between wins and salaries. While there are some instances where salary increase seems to reflect on previous year performance, there are other instances where there is a signifcant salary increase despite a drop in performance. 
+--There seems to be a very, very loose correlation between wins and salaries, if there is one at all. While there are some instances where salary increase seems to reflect on previous year performance, there are other instances where there is a signifcant salary increase despite a drop in performance. 
 
 
 --12. In this question, you will explore the connection between number of wins and attendance.
-    -- Does there appear to be any correlation between attendance at home games and number of wins?
+    -- Does there appear to be any correlation between attendance at home games and number of wins? 
+		--There is not really a correlation between home games and wins.
     -- Do teams that win the world series see a boost in attendance the following year? What about teams that made the playoffs? Making the playoffs means either being a division winner or a wild card winner.
 
 SELECT
@@ -366,11 +367,18 @@ FROM teams
 ORDER BY yearid DESC)
 
 SELECT
-	*
+		*
+	--name
+	--,yearid
 	,CASE WHEN attendance < followingyearattendance THEN 'increase'
 	WHEN attendance > followingyearattendance THEN 'decrease' END AS inc_OR_dec
+	--CORR(cte.w, cte.attendance) AS relation
 FROM cte
-
+--GROUP BY
+	--name
+	--,yearid
+	--,inc_OR_dec
+--ORDER BY relation DESC
 --13. It is thought that since left-handed pitchers are more rare, causing batters to face them less often, that they are more effective. Investigate this claim and present evidence to either support or dispute this claim. First, determine just how rare left-handed pitchers are compared with right-handed pitchers. Are left-handed pitchers more likely to win the Cy Young Award? Are they more likely to make it into the hall of fame?*/
 
 SELECT
