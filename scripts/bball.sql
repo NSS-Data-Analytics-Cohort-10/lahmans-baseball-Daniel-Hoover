@@ -339,14 +339,17 @@ ORDER BY s.yearid, SUM(s.salary)
 --12. In this question, you will explore the connection between number of wins and attendance.
     -- Does there appear to be any correlation between attendance at home games and number of wins? 
 		--There is not really a correlation between home games and wins.
-    -- Do teams that win the world series see a boost in attendance the following year? What about teams that made the playoffs? Making the playoffs means either being a division winner or a wild card winner.
-
+    -- Do teams that win the world series see a boost in attendance the following year? 
+	  --There doesnt seem to be a correlation between world series wins and attendance either
+	--What about teams that made the playoffs? (Making the playoffs means either being a division winner or a wild card winner.)
+		--There is no correlation between them
 SELECT
 	yearid
 	,name
 	,w
 	,ghome
 	,attendance
+	,wswin
 	,CASE WHEN divwin = 'Y' OR wcwin = 'Y' THEN 'true' ELSE 'false' END AS in_playoffs
 	,lead(attendance) OVER (PARTITION BY name ORDER BY yearid) AS followingyearattendance
 FROM teams
